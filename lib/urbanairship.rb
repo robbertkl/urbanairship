@@ -101,8 +101,16 @@ module Urbanairship
       do_request(:post, "/api/tags/#{params[:tag]}", :body => {provider_field => {:remove => [params[:device_token]]}}.to_json, :authenticate_with => :master_secret)
     end
 
-    def device_tokens
-      do_request(:get, "/api/device_tokens/", :authenticate_with => :master_secret)
+    def device_tokens(&block)
+      Enumerator.new do |yielder|
+        next_page = URI('/api/device_tokens/')
+        until next_page.nil?
+          response = do_request(:get, "#{next_page.path}?#{next_page.query}", :authenticate_with => :master_secret)
+          raise 'Error getting device tokens' unless response.success?
+          response['device_tokens'].each { |token| yielder.yield token }
+          next_page = response['next_page'] ? URI(response['next_page']) : nil
+        end
+      end.lazy.each(&block)
     end
 
     def device_tokens_count
